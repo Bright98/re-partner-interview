@@ -6,7 +6,11 @@
 //  3. Within the same item total, send the fewest packs possible (secondary).
 package packs
 
-import "errors"
+import (
+	"errors"
+	"math"
+	"sort"
+)
 
 // DefaultSizes is the standard set of pack sizes, ordered largest-first.
 var DefaultSizes = []int{5000, 2000, 1000, 500, 250}
@@ -25,14 +29,23 @@ type Result struct {
 	TotalPacks int    `json:"total_packs"`
 }
 
-// Calculate returns the optimal packs needed to fulfil the given order using
-// the provided pack sizes (must be sorted largest-first and all > 0).
+func gcd(a, b int) int {
+	for b != 0 {
+		a, b = b, a%b
+	}
+	return a
+}
+
+// Calculate returns the optimal packs needed to fulfil the given order.
 //
 // Algorithm:
-//  1. Find the smallest multiple of the smallest pack size that covers the
-//     order — this is the minimum items we can legally ship (Rule 2).
-//  2. Greedily fill that target with the largest available packs first
-//     to minimise pack count (Rule 3).
+//
+//	For each combination of the smaller pack counts (bounded by largest/gcd(largest, size),
+//	beyond which counts are redundant), compute how many of the largest pack are needed to
+//	cover the remainder. Track the combination with fewest total items, then fewest packs.
+//
+// This handles arbitrary pack sizes correctly, including cases where the greedy
+// "round up to nearest multiple of smallest" approach fails.
 func Calculate(order int, sizes []int) (Result, error) {
 	if order <= 0 {
 		return Result{}, errors.New("order must be greater than zero")
@@ -41,36 +54,82 @@ func Calculate(order int, sizes []int) (Result, error) {
 		return Result{}, errors.New("at least one pack size is required")
 	}
 
-	smallest := sizes[len(sizes)-1]
+	sorted := append([]int(nil), sizes...)
+	sort.Sort(sort.Reverse(sort.IntSlice(sorted)))
 
-	// Rule 2: round up to the nearest multiple of the smallest pack size.
-	rem := order % smallest
-	target := order
-	if rem != 0 {
-		target = order + (smallest - rem)
-	}
+	bestCounts := solve(order, sorted)
 
-	// Rule 3: greedy fill from largest to smallest.
-	var packs []Pack
-	remaining := target
-	for _, size := range sizes {
-		if count := remaining / size; count > 0 {
-			packs = append(packs, Pack{Size: size, Count: count})
-			remaining -= count * size
+	var packList []Pack
+	totalItems, totalPacks := 0, 0
+	for i, s := range sorted {
+		if bestCounts[i] > 0 {
+			packList = append(packList, Pack{Size: s, Count: bestCounts[i]})
+			totalItems += s * bestCounts[i]
+			totalPacks += bestCounts[i]
 		}
-	}
-
-	totalItems := 0
-	totalPacks := 0
-	for _, p := range packs {
-		totalItems += p.Size * p.Count
-		totalPacks += p.Count
 	}
 
 	return Result{
 		Order:      order,
-		Packs:      packs,
+		Packs:      packList,
 		TotalItems: totalItems,
 		TotalPacks: totalPacks,
 	}, nil
+}
+
+// solve returns the optimal count for each size (parallel to sizes, largest-first).
+func solve(order int, sizes []int) []int {
+	largest := sizes[0]
+	smaller := sizes[1:]
+
+	// For each smaller size s, counts beyond largest/gcd(largest,s) are redundant:
+	// that many packs of s equal an integer number of packs of 'largest', so they
+	// can always be swapped without changing the total — or improving pack count.
+	bounds := make([]int, len(smaller))
+	for i, s := range smaller {
+		bounds[i] = largest / gcd(largest, s)
+	}
+
+	bestTotal := math.MaxInt
+	bestPacks := math.MaxInt
+	bestCounts := make([]int, len(sizes))
+
+	cur := make([]int, len(smaller)) // current counts for each smaller size
+	for {
+		partial, partialPacks := 0, 0
+		for i, s := range smaller {
+			partial += cur[i] * s
+			partialPacks += cur[i]
+		}
+
+		largeCount := 0
+		if partial < order {
+			largeCount = (order - partial + largest - 1) / largest
+		}
+		total := largeCount*largest + partial
+		numPacks := largeCount + partialPacks
+
+		if total < bestTotal || (total == bestTotal && numPacks < bestPacks) {
+			bestTotal = total
+			bestPacks = numPacks
+			bestCounts[0] = largeCount
+			copy(bestCounts[1:], cur)
+		}
+
+		// Odometer-style increment across all smaller-size counters.
+		i := len(cur) - 1
+		for i >= 0 {
+			cur[i]++
+			if cur[i] < bounds[i] {
+				break
+			}
+			cur[i] = 0
+			i--
+		}
+		if i < 0 {
+			break
+		}
+	}
+
+	return bestCounts
 }

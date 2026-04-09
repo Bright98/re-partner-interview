@@ -123,6 +123,22 @@ func TestCalculate(t *testing.T) {
 	}
 }
 
+func TestCalculate_ArbitrarySizes(t *testing.T) {
+	// Pack sizes with no common divisor — greedy "round to smallest" fails here.
+	// 500,000 = 23×2 + 31×7 + 53×9429 (exact, no overshoot needed)
+	got, err := packs.Calculate(500_000, []int{23, 31, 53})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.TotalItems != 500_000 {
+		t.Errorf("total items: got %d, want 500000", got.TotalItems)
+	}
+	want := []packs.Pack{{Size: 53, Count: 9429}, {Size: 31, Count: 7}, {Size: 23, Count: 2}}
+	if !reflect.DeepEqual(got.Packs, want) {
+		t.Errorf("packs: got %v, want %v", got.Packs, want)
+	}
+}
+
 func TestCalculate_Errors(t *testing.T) {
 	t.Run("zero order", func(t *testing.T) {
 		_, err := packs.Calculate(0, packs.DefaultSizes)
