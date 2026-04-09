@@ -52,7 +52,7 @@ func TestHandlePacks_Success(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/packs?"+tc.query, nil)
 			w := httptest.NewRecorder()
 
-			handlePacks(w, req)
+			handlePacks(packs.DefaultSizes)(w, req)
 
 			if w.Code != tc.wantStatus {
 				t.Fatalf("status: got %d, want %d", w.Code, tc.wantStatus)
@@ -128,7 +128,7 @@ func TestHandlePacks_BadRequests(t *testing.T) {
 			req := httptest.NewRequest(tc.method, url, nil)
 			w := httptest.NewRecorder()
 
-			handlePacks(w, req)
+			handlePacks(packs.DefaultSizes)(w, req)
 
 			if w.Code != tc.wantStatus {
 				t.Errorf("status: got %d, want %d", w.Code, tc.wantStatus)
