@@ -8,11 +8,17 @@ Calculates the optimal number of packs to ship for a given order, following thes
 
 Available pack sizes: **250 · 500 · 1,000 · 2,000 · 5,000**
 
-## Requirements
+## Live Demo
+
+**https://re-partner-interview-production.up.railway.app/ui/**
+
+No setup needed — open the link to use the app directly.
+
+## Run Locally
+
+### Requirements
 
 - Go 1.21+
-
-## Run
 
 ```bash
 go run .
