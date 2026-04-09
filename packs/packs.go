@@ -37,15 +37,9 @@ func gcd(a, b int) int {
 }
 
 // Calculate returns the optimal packs needed to fulfil the given order.
-//
-// Algorithm:
-//
-//	For each combination of the smaller pack counts (bounded by largest/gcd(largest, size),
-//	beyond which counts are redundant), compute how many of the largest pack are needed to
-//	cover the remainder. Track the combination with fewest total items, then fewest packs.
-//
-// This handles arbitrary pack sizes correctly, including cases where the greedy
-// "round up to nearest multiple of smallest" approach fails.
+// It uses a bounded search over smaller pack combinations to guarantee
+// correctness for arbitrary pack sizes, where a simple greedy approach
+// would fail.
 func Calculate(order int, sizes []int) (Result, error) {
 	if order <= 0 {
 		return Result{}, errors.New("order must be greater than zero")
@@ -82,9 +76,8 @@ func solve(order int, sizes []int) []int {
 	largest := sizes[0]
 	smaller := sizes[1:]
 
-	// For each smaller size s, counts beyond largest/gcd(largest,s) are redundant:
-	// that many packs of s equal an integer number of packs of 'largest', so they
-	// can always be swapped without changing the total — or improving pack count.
+	// Counts beyond largest/gcd(largest,s) are redundant: at that point,
+	// s packs cover an exact multiple of 'largest', so swapping reduces pack count.
 	bounds := make([]int, len(smaller))
 	for i, s := range smaller {
 		bounds[i] = largest / gcd(largest, s)
@@ -116,7 +109,6 @@ func solve(order int, sizes []int) []int {
 			copy(bestCounts[1:], cur)
 		}
 
-		// Odometer-style increment across all smaller-size counters.
 		i := len(cur) - 1
 		for i >= 0 {
 			cur[i]++
