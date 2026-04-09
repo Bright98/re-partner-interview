@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pack Calculator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f4f6f9;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 16px rgba(0,0,0,.08);
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: .25rem;
+    }
+
+    .subtitle {
+      font-size: .875rem;
+      color: #666;
+      margin-bottom: 2rem;
+    }
+
+    label {
+      display: block;
+      font-size: .8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #444;
+      margin-bottom: .5rem;
+    }
+
+    .input-row {
+      display: flex;
+      gap: .75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    input[type="number"] {
+      flex: 1;
+      padding: .65rem .9rem;
+      border: 1.5px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color .15s;
+    }
+    input[type="number"]:focus { border-color: #4f46e5; }
+
+    button {
+      padding: .65rem 1.4rem;
+      background: #4f46e5;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: .95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+      white-space: nowrap;
+    }
+    button:hover { background: #4338ca; }
+    button:disabled { background: #a5b4fc; cursor: not-allowed; }
+
+    /* ── result area ── */
+    #result { display: none; }
+
+    .error-box {
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      color: #b91c1c;
+      border-radius: 8px;
+      padding: .8rem 1rem;
+      font-size: .9rem;
+    }
+
+    .summary {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .stat {
+      flex: 1;
+      background: #f9fafb;
+      border-radius: 8px;
+      padding: .9rem 1rem;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #4f46e5;
+      line-height: 1;
+    }
+    .stat-label {
+      font-size: .75rem;
+      color: #6b7280;
+      margin-top: .25rem;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .9rem;
+    }
+    th {
+      text-align: left;
+      font-size: .75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #6b7280;
+      padding: .4rem .75rem;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    td {
+      padding: .6rem .75rem;
+      border-bottom: 1px solid #f3f4f6;
+      color: #111;
+    }
+    tr:last-child td { border-bottom: none; }
+
+    .badge {
+      display: inline-block;
+      background: #ede9fe;
+      color: #5b21b6;
+      border-radius: 999px;
+      padding: .15rem .65rem;
+      font-size: .8rem;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Pack Calculator</h1>
+    <p class="subtitle">Available sizes: 250 · 500 · 1,000 · 2,000 · 5,000</p>
+
+    <label for="orderInput">Items ordered</label>
+    <div class="input-row">
+      <input id="orderInput" type="number" min="1" placeholder="e.g. 12001" />
+      <button id="calcBtn" onclick="calculate()">Calculate</button>
+    </div>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const input  = document.getElementById('orderInput');
+    const btn    = document.getElementById('calcBtn');
+    const result = document.getElementById('result');
+
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
+
+    async function calculate() {
+      const order = parseInt(input.value, 10);
+      if (!order || order < 1) {
+        show(`<div class="error-box">Please enter a positive whole number.</div>`);
+        return;
+      }
+
+      btn.disabled = true;
+      result.style.display = 'none';
+
+      try {
+        const res  = await fetch(`/packs?order=${order}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+          show(`<div class="error-box">${data.error}</div>`);
+          return;
+        }
+
+        const rows = data.packs.map(p => `
+          <tr>
+            <td><span class="badge">${p.size.toLocaleString()}</span></td>
+            <td>${p.count}</td>
+            <td>${(p.size * p.count).toLocaleString()}</td>
+          </tr>`).join('');
+
+        show(`
+          <div class="summary">
+            <div class="stat">
+              <div class="stat-value">${data.total_packs}</div>
+              <div class="stat-label">Packs</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value">${data.total_items.toLocaleString()}</div>
+              <div class="stat-label">Items shipped</div>
+            </div>
+          </div>
+          <table>
+            <thead><tr><th>Pack size</th><th>Qty</th><th>Items</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`);
+      } catch {
+        show(`<div class="error-box">Could not reach the server.</div>`);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function show(html) {
+      result.innerHTML = html;
+      result.style.display = 'block';
+    }
+  </script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,6 +10,9 @@ import (
 
 	"packapi/packs"
 )
+
+//go:embed ui/index.html
+var ui embed.FS
 
 // errorResponse is returned for all 4xx/5xx responses.
 type errorResponse struct {
@@ -67,6 +71,8 @@ func handlePacks(w http.ResponseWriter, r *http.Request) {
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/packs", handlePacks)
+	mux.Handle("/ui/", http.FileServer(http.FS(ui)))
+	mux.Handle("/", http.RedirectHandler("/ui/index.html", http.StatusMovedPermanently))
 
 	addr := ":8080"
 	fmt.Printf("Pack calculator listening on %s\n", addr)
