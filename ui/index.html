@@ -26,18 +26,9 @@
       max-width: 480px;
     }
 
-    h1 {
-      font-size: 1.4rem;
-      font-weight: 700;
-      color: #111;
-      margin-bottom: .25rem;
-    }
+    h1 { font-size: 1.4rem; font-weight: 700; color: #111; margin-bottom: .25rem; }
 
-    .subtitle {
-      font-size: .875rem;
-      color: #666;
-      margin-bottom: 2rem;
-    }
+    .subtitle { font-size: .875rem; color: #666; margin-bottom: 2rem; }
 
     label {
       display: block;
@@ -49,11 +40,7 @@
       margin-bottom: .5rem;
     }
 
-    .input-row {
-      display: flex;
-      gap: .75rem;
-      margin-bottom: 1.5rem;
-    }
+    .input-row { display: flex; gap: .75rem; margin-bottom: 1.5rem; }
 
     input[type="number"] {
       flex: 1;
@@ -81,7 +68,6 @@
     button:hover { background: #4338ca; }
     button:disabled { background: #a5b4fc; cursor: not-allowed; }
 
-    /* ── result area ── */
     #result { display: none; }
 
     .error-box {
@@ -93,11 +79,7 @@
       font-size: .9rem;
     }
 
-    .summary {
-      display: flex;
-      gap: 1rem;
-      margin-bottom: 1.25rem;
-    }
+    .summary { display: flex; gap: 1rem; margin-bottom: 1.25rem; }
 
     .stat {
       flex: 1;
@@ -106,25 +88,10 @@
       padding: .9rem 1rem;
       text-align: center;
     }
-    .stat-value {
-      font-size: 1.6rem;
-      font-weight: 700;
-      color: #4f46e5;
-      line-height: 1;
-    }
-    .stat-label {
-      font-size: .75rem;
-      color: #6b7280;
-      margin-top: .25rem;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-    }
+    .stat-value { font-size: 1.6rem; font-weight: 700; color: #4f46e5; line-height: 1; }
+    .stat-label { font-size: .75rem; color: #6b7280; margin-top: .25rem; text-transform: uppercase; letter-spacing: .04em; }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: .9rem;
-    }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
     th {
       text-align: left;
       font-size: .75rem;
@@ -135,11 +102,7 @@
       padding: .4rem .75rem;
       border-bottom: 1px solid #e5e7eb;
     }
-    td {
-      padding: .6rem .75rem;
-      border-bottom: 1px solid #f3f4f6;
-      color: #111;
-    }
+    td { padding: .6rem .75rem; border-bottom: 1px solid #f3f4f6; color: #111; }
     tr:last-child td { border-bottom: none; }
 
     .badge {
@@ -151,12 +114,49 @@
       font-size: .8rem;
       font-weight: 600;
     }
+
+    .divider { border: none; border-top: 1px solid #e5e7eb; margin: 1.5rem 0; }
+
+    .section-label {
+      font-size: .75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #6b7280;
+      margin-bottom: .6rem;
+    }
+
+    .chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1rem; }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: .25rem;
+      background: #ede9fe;
+      color: #5b21b6;
+      border-radius: 999px;
+      padding: .2rem .5rem .2rem .75rem;
+      font-size: .8rem;
+      font-weight: 600;
+    }
+
+    .chip-remove {
+      background: none;
+      border: none;
+      color: #7c3aed;
+      cursor: pointer;
+      font-size: .85rem;
+      line-height: 1;
+      padding: 0 .15rem;
+      border-radius: 50%;
+    }
+    .chip-remove:hover { background: #ddd6fe; }
   </style>
 </head>
 <body>
   <div class="card">
     <h1>Pack Calculator</h1>
-    <p class="subtitle">Available sizes: 250 · 500 · 1,000 · 2,000 · 5,000</p>
+    <p class="subtitle" id="subtitle">Loading…</p>
 
     <label for="orderInput">Items ordered</label>
     <div class="input-row">
@@ -165,41 +165,92 @@
     </div>
 
     <div id="result"></div>
+
+    <hr class="divider" />
+
+    <div class="section-label">Pack sizes</div>
+    <div class="chips" id="chips"></div>
+
+    <label for="newSize">Add a custom pack size</label>
+    <div class="input-row">
+      <input id="newSize" type="number" min="1" placeholder="e.g. 750" />
+      <button onclick="addSize()">Add</button>
+    </div>
+    <div id="sizeError"></div>
   </div>
 
   <script>
-    const input  = document.getElementById('orderInput');
-    const btn    = document.getElementById('calcBtn');
-    const result = document.getElementById('result');
+    const orderInput = document.getElementById('orderInput');
+    const calcBtn    = document.getElementById('calcBtn');
+    const result     = document.getElementById('result');
+    const chips      = document.getElementById('chips');
+    const subtitle   = document.getElementById('subtitle');
+    const newSize    = document.getElementById('newSize');
+    const sizeError  = document.getElementById('sizeError');
 
-    input.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
+    orderInput.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
+    newSize.addEventListener('keydown',    e => { if (e.key === 'Enter') addSize(); });
+
+    async function loadSizes() {
+      const res  = await fetch('/pack-sizes');
+      const data = await res.json();
+      renderSizes(data.pack_sizes);
+    }
+
+    function renderSizes(packSizes) {
+      subtitle.textContent = 'Available sizes: ' + packSizes.map(s => s.toLocaleString()).join(' · ');
+      chips.innerHTML = packSizes.map(s => `
+        <span class="chip">
+          ${s.toLocaleString()}
+          <button class="chip-remove" title="Remove ${s}" onclick="removeSize(${s})">✕</button>
+        </span>`).join('');
+    }
+
+    async function addSize() {
+      const size = parseInt(newSize.value, 10);
+      if (!size || size < 1) { showSizeError('Enter a positive whole number.'); return; }
+      const res  = await fetch('/pack-sizes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ size }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showSizeError(data.error); return; }
+      newSize.value = '';
+      sizeError.innerHTML = '';
+      renderSizes(data.pack_sizes);
+    }
+
+    async function removeSize(size) {
+      const res  = await fetch(`/pack-sizes?size=${size}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) { showSizeError(data.error); return; }
+      sizeError.innerHTML = '';
+      renderSizes(data.pack_sizes);
+    }
+
+    function showSizeError(msg) {
+      sizeError.innerHTML = `<div class="error-box">${msg}</div>`;
+    }
 
     async function calculate() {
-      const order = parseInt(input.value, 10);
+      const order = parseInt(orderInput.value, 10);
       if (!order || order < 1) {
         show(`<div class="error-box">Please enter a positive whole number.</div>`);
         return;
       }
-
-      btn.disabled = true;
+      calcBtn.disabled = true;
       result.style.display = 'none';
-
       try {
         const res  = await fetch(`/packs?order=${order}`);
         const data = await res.json();
-
-        if (!res.ok) {
-          show(`<div class="error-box">${data.error}</div>`);
-          return;
-        }
-
+        if (!res.ok) { show(`<div class="error-box">${data.error}</div>`); return; }
         const rows = data.packs.map(p => `
           <tr>
             <td><span class="badge">${p.size.toLocaleString()}</span></td>
             <td>${p.count}</td>
             <td>${(p.size * p.count).toLocaleString()}</td>
           </tr>`).join('');
-
         show(`
           <div class="summary">
             <div class="stat">
@@ -218,7 +269,7 @@
       } catch {
         show(`<div class="error-box">Could not reach the server.</div>`);
       } finally {
-        btn.disabled = false;
+        calcBtn.disabled = false;
       }
     }
 
@@ -226,6 +277,8 @@
       result.innerHTML = html;
       result.style.display = 'block';
     }
+
+    loadSizes();
   </script>
 </body>
 </html>
